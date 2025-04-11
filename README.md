@@ -18,3 +18,12 @@
 - Python 3.7+
 - Стандартная библиотека (модули: `random`, `copy`, `time`)
 
+## !!!СОЗДАНИЕ ИЗ ПРЕИСПОДНИ!!!
+
+-следующее чудовище было найдено спустя 4 часа генерации, представляю вашему вниманию ABSOLUTE 
+
+![макафе нашел идеальный судоку](https://github.com/user-attachments/assets/288a078e-e1c7-4e27-894b-8252ffb90e1d)
+
+это судоку было классифицировано как Extreme Grade сайтом https://www.sudokuwiki.org/sudoku.htm и имеет рейтинг 1015!!
+
+![image](https://github.com/user-attachments/assets/6f8e2575-6684-4268-9308-c6fdd5012268)
