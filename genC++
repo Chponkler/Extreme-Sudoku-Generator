@@ -1,0 +1,232 @@
+#include <iostream>
+#include <vector>
+#include <algorithm>
+#include <random>
+#include <chrono>
+#include <thread>
+#include <atomic>
+#include <mutex>
+#include <memory>
+
+const int SIZE = 9;
+const int BOX_SIZE = 3;
+
+using Grid = std::vector<std::vector<int>>;
+
+// --- Вспомогательные функции ---
+void print_grid(const Grid& grid) {
+    for (const auto& row : grid) {
+        for (int num : row) {
+            if (num == 0) std::cout << ". ";
+            else std::cout << num << " ";
+        }
+        std::cout << "\n";
+    }
+}
+
+Grid copy_grid(const Grid& grid) {
+    Grid new_grid(SIZE, std::vector<int>(SIZE));
+    for (int i = 0; i < SIZE; ++i) {
+        for (int j = 0; j < SIZE; ++j) {
+            new_grid[i][j] = grid[i][j];
+        }
+    }
+    return new_grid;
+}
+
+// --- Основная логика судоку ---
+bool is_valid(const Grid& grid, int row, int col, int num) {
+    for (int i = 0; i < SIZE; ++i) {
+        if (grid[row][i] == num || grid[i][col] == num) {
+            return false;
+        }
+    }
+
+    int start_row = row - row % BOX_SIZE;
+    int start_col = col - col % BOX_SIZE;
+    for (int i = 0; i < BOX_SIZE; ++i) {
+        for (int j = 0; j < BOX_SIZE; ++j) {
+            if (grid[start_row + i][start_col + j] == num) {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+std::pair<int, int> find_empty(const Grid& grid) {
+    for (int i = 0; i < SIZE; ++i) {
+        for (int j = 0; j < SIZE; ++j) {
+            if (grid[i][j] == 0) {
+                return {i, j};
+            }
+        }
+    }
+    return {-1, -1};
+}
+
+bool solve_with_counter(Grid& grid, int& counter) {
+    auto [row, col] = find_empty(grid);
+    if (row == -1) return true;
+
+    for (int num = 1; num <= 9; ++num) {
+        if (is_valid(grid, row, col, num)) {
+            grid[row][col] = num;
+            counter++;
+            if (solve_with_counter(grid, counter)) {
+                return true;
+            }
+            grid[row][col] = 0;
+        }
+    }
+    return false;
+}
+
+int count_solutions(Grid& grid, int limit = 2) {
+    auto [row, col] = find_empty(grid);
+    if (row == -1) return 1;
+
+    int count = 0;
+    for (int num = 1; num <= 9; ++num) {
+        if (is_valid(grid, row, col, num)) {
+            grid[row][col] = num;
+            count += count_solutions(grid, limit);
+            if (count >= limit) break;
+            grid[row][col] = 0;
+        }
+    }
+    grid[row][col] = 0;
+    return count;
+}
+
+// --- Генерация судоку ---
+Grid generate_super_hard_puzzle(bool verbose = true) {
+    std::random_device rd;
+    std::mt19937 g(rd());
+
+    int attempt = 0;
+    while (true) {
+        attempt++;
+        if (verbose && attempt % 10 == 0) {
+            std::cout << "🔄 Попытка #" << attempt << "\n";
+        }
+
+        Grid grid(SIZE, std::vector<int>(SIZE, 0));
+
+        // Заполняем 11 случайных ячеек
+        std::vector<int> positions(SIZE * SIZE);
+        std::iota(positions.begin(), positions.end(), 0);
+        std::shuffle(positions.begin(), positions.end(), g);
+
+        for (int i = 0; i < 11; ++i) {
+            int pos = positions[i];
+            int row = pos / SIZE;
+            int col = pos % SIZE;
+
+            std::vector<int> nums{1, 2, 3, 4, 5, 6, 7, 8, 9};
+            std::shuffle(nums.begin(), nums.end(), g);
+
+            for (int num : nums) {
+                if (is_valid(grid, row, col, num)) {
+                    grid[row][col] = num;
+                    break;
+                }
+            }
+        }
+
+        Grid grid_copy = copy_grid(grid);
+        int dummy_counter = 0;
+        if (!solve_with_counter(grid_copy, dummy_counter)) {
+            continue;
+        }
+
+        Grid solution = copy_grid(grid_copy);
+        Grid puzzle = copy_grid(solution);
+
+        // Создаем список всех ячеек и перемешиваем
+        std::vector<std::pair<int, int>> cells;
+        for (int i = 0; i < SIZE; ++i) {
+            for (int j = 0; j < SIZE; ++j) {
+                cells.emplace_back(i, j);
+            }
+        }
+        std::shuffle(cells.begin(), cells.end(), g);
+
+        int clues = 81;
+        for (auto [row, col] : cells) {
+            if (clues <= 22) break;
+
+            int backup = puzzle[row][col];
+            puzzle[row][col] = 0;
+
+            Grid puzzle_copy = copy_grid(puzzle);
+            if (count_solutions(puzzle_copy) != 1) {
+                puzzle[row][col] = backup;
+            } else {
+                clues--;
+            }
+        }
+
+        int steps = 0;
+        Grid puzzle_copy = copy_grid(puzzle);
+        solve_with_counter(puzzle_copy, steps);
+
+        if (clues <= 22 && steps > 20000) {
+            std::cout << "✅ Успех! Подсказок: " << clues << ", Шагов решения: " << steps << "\n";
+            return puzzle;
+        }
+    }
+}
+
+// --- Таймаут и потоковая обработка ---
+Grid generate_with_timeout(int timeout_seconds = 40) {
+    int attempt_count = 1;
+    while (true) {
+        std::cout << "\nПопытка генерации #" << attempt_count << "\n";
+        auto start_time = std::chrono::steady_clock::now();
+
+        std::atomic<bool> done(false);
+        std::mutex mtx;
+        Grid result;
+
+        auto worker = [&]() {
+            try {
+                Grid puzzle = generate_super_hard_puzzle(false);
+                std::lock_guard<std::mutex> lock(mtx);
+                result = puzzle;
+                done = true;
+            } catch (...) {
+                std::cout << "Ошибка при генерации\n";
+            }
+        };
+
+        std::thread worker_thread(worker);
+        worker_thread.detach();
+
+        while (!done) {
+            auto now = std::chrono::steady_clock::now();
+            auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(now - start_time).count();
+            if (elapsed >= timeout_seconds) {
+                std::cout << "⌛ Превышено время генерации (" << timeout_seconds << " сек). Пробуем снова...\n";
+                attempt_count++;
+                break;
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        }
+
+        if (done) {
+            auto end_time = std::chrono::steady_clock::now();
+            auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
+            std::cout << "\n✅ Сгенерировано за " << elapsed / 1000.0 << " сек\n";
+            return result;
+        }
+    }
+}
+
+int main() {
+    std::cout << "🚀 Генерация суперсложной судоку (максимум 100 секунд на попытку)...\n";
+    Grid puzzle = generate_with_timeout();
+    print_grid(puzzle);
+
+    return 0;
+}
