@@ -28,12 +28,11 @@ def solve_with_counter(grid, counter=None):
     if not empty:
         return True
     row, col = empty
-
     for num in range(1, 10):
         if is_valid(grid, row, col, num):
             grid[row][col] = num
             if counter is not None:
-                counter[0] += 1  # считаем шаг
+                counter[0] += 1
             if solve_with_counter(grid, counter):
                 return True
             grid[row][col] = 0
@@ -55,9 +54,13 @@ def count_solutions(grid, limit=2):
     grid[row][col] = 0
     return count
 
-def generate_hard_puzzle():
+def generate_super_hard_puzzle(verbose=True):
+    attempt = 0
     while True:
-        # 1. Случайно заполняем 11 клеток
+        attempt += 1
+        if verbose and attempt % 10 == 0:
+            print(f"🔄 Попытка #{attempt}")
+
         grid = [[0 for _ in range(SIZE)] for _ in range(SIZE)]
         positions = random.sample(range(SIZE * SIZE), 11)
         for pos in positions:
@@ -69,16 +72,13 @@ def generate_hard_puzzle():
                     grid[row][col] = num
                     break
 
-        # 2. Решаем
         grid_copy = copy.deepcopy(grid)
         if not solve_with_counter(grid_copy):
-            continue  # нерешаемо
+            continue
 
         solution = copy.deepcopy(grid_copy)
-
-        # 3. Удаляем максимум
         puzzle = copy.deepcopy(solution)
-        cells = [(i, j) for i in range(9) for j in range(9)]
+        cells = [(i, j) for i in range(SIZE) for j in range(SIZE)]
         random.shuffle(cells)
         clues = 81
         for row, col in cells:
@@ -86,34 +86,55 @@ def generate_hard_puzzle():
                 break
             backup = puzzle[row][col]
             puzzle[row][col] = 0
-            test_grid = copy.deepcopy(puzzle)
-            if count_solutions(test_grid) != 1:
+            if count_solutions(copy.deepcopy(puzzle)) != 1:
                 puzzle[row][col] = backup
             else:
                 clues -= 1
 
-        # 4. Сложность: считаем шаги решения
-        test_copy = copy.deepcopy(puzzle)
         steps = [0]
-        solve_with_counter(test_copy, steps)
+        solve_with_counter(copy.deepcopy(puzzle), steps)
 
-        if clues <= 22 and steps[0] > 300:
-            return puzzle, steps[0], clues  # достаточно сложное
+        if clues <= 22 and steps[0] > 1500:
+            return puzzle, steps[0], clues
 
 def print_grid(grid):
     for i in range(9):
-        row = ''
-        for j in range(9):
-            val = grid[i][j]
-            row += str(val) if val != 0 else '.'
-            row += ' '
-            if (j + 1) % 3 == 0 and j < 8:
-                row += '| '
-        print(row)
-        if (i + 1) % 3 == 0 and i < 8:
-            print('-' * 21)
+        print(" ".join(str(n) if n != 0 else '.' for n in grid[i]))
+
+def generate_with_timeout(timeout=60):
+    attempt_count = 1
+    while True:
+        print(f"\nПопытка генерации #{attempt_count}")
+        start_time = time.time()
+        
+        try:
+            # Запускаем генерацию с таймаутом
+            result = None
+            def generate():
+                nonlocal result
+                result = generate_super_hard_puzzle(verbose=False)
+            
+            import threading
+            thread = threading.Thread(target=generate)
+            thread.start()
+            thread.join(timeout=timeout)
+            
+            if thread.is_alive():
+                print(f"⌛ Превышено время генерации ({timeout} сек). Пробуем снова...")
+                attempt_count += 1
+                continue
+                
+            if result:
+                puzzle, steps, clues = result
+                elapsed = time.time() - start_time
+                print(f"\n✅ Сгенерировано за {elapsed:.2f} сек | Подсказок: {clues} | Шагов: {steps}")
+                print_grid(puzzle)
+                return puzzle
+                
+        except Exception as e:
+            print(f"Ошибка при генерации: {e}. Пробуем снова...")
+            attempt_count += 1
 
 # Генерация и вывод
-sudoku, difficulty_score, clues = generate_hard_puzzle()
-print(f"\n🧩 Сложная судоку | Подсказок: {clues} | Шагов решения: {difficulty_score}")
-print_grid(sudoku)
+print("🚀 Генерация суперсложной судоку (максимум 60 секунд на попытку)...")
+puzzle = generate_with_timeout()
