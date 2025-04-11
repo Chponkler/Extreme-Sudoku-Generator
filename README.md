@@ -27,3 +27,8 @@
 это судоку было классифицировано как Extreme Grade сайтом https://www.sudokuwiki.org/sudoku.htm и имеет рейтинг 1015!!
 
 ![image](https://github.com/user-attachments/assets/6f8e2575-6684-4268-9308-c6fdd5012268)
+
+
+еще пример генерации (на c++)
+
+![image](https://github.com/user-attachments/assets/69d0fe67-03e3-4fb4-ad0f-dc82dc540678)
